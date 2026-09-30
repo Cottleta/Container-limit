@@ -1,8 +1,0 @@
-dev\containerlimit\ContainerLimit.class
-dev\containerlimit\LimitManager$Rule.class
-dev\containerlimit\LimitManager.class
-dev\containerlimit\ContainerListener$1.class
-dev\containerlimit\LimitManager$Result.class
-dev\containerlimit\CustomItemMatcher.class
-dev\containerlimit\LimitManager$LimitTable.class
-dev\containerlimit\ContainerListener.class
