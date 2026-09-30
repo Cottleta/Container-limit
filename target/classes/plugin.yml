@@ -1,0 +1,20 @@
+name: ContainerLimit
+version: '2.0.0'
+main: dev.containerlimit.ContainerLimit
+api-version: '1.17'
+description: Limit or block specific items in ender chests and other containers.
+
+commands:
+  containerlimit:
+    description: ContainerLimit admin command.
+    aliases: [climit]
+    usage: /<command> <reload|list|hand>
+    permission: containerlimit.admin
+
+permissions:
+  containerlimit.admin:
+    description: Use /climit reload, list and hand.
+    default: op
+  containerlimit.bypass:
+    description: Ignore all container limits. Per container type use containerlimit.bypass.<type>.
+    default: false
