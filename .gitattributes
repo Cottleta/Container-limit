@@ -1,0 +1,5 @@
+# Store text files with LF line endings in the repo, so Windows and Linux checkouts don't fight
+* text=auto eol=lf
+
+*.jar binary
+*.png binary
