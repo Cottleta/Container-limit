@@ -1,163 +1,120 @@
 # ContainerLimit
 
-A Spigot/Paper plugin that limits or blocks specific items in ender chests, chests, shulker boxes, bundles and other containers. You can also limit custom items from other plugins, like LifestealZ hearts.
-
-```yaml
-containers:
-  ENDER_CHEST:
-    ELYTRA: 1                                   # max 1 elytra per ender chest
-    TOTEM_OF_UNDYING: 0                         # 0 = blocked
-    'custom:lifestealz:customitemtype=heart': 0 # custom item from another plugin
-  BUNDLE:
-    ENDER_PEARL: 8                              # max 8 pearls inside each bundle
-```
+A Spigot/Paper plugin that limits or blocks specific items in ender chests, chests, shulker boxes, bundles and other containers. It works with vanilla items, groups of items, and custom items from other plugins.
 
 ## Features
 
-- **Separate limits for each container type:** ender chests, chests, barrels, shulker boxes, hoppers, dispensers, droppers, furnaces, brewing stands, crafters and bundles.
-- **Limit or block items:** set any number as the maximum, or `0` to block an item completely. The limit counts every slot in the container, not per stack.
-- **Partial placing:** if you try to put in more than is allowed, as many as fit go in and the rest stays on your cursor or in its slot.
-- **Item groups:** one entry can cover several items, using Minecraft tags (`WOOL` for all 16 colors) or wildcards (`'*SHULKER_BOX'`).
-- **Custom items from other plugins:** items are recognised by the hidden tag their plugin puts on them, so renaming an item in an anvil doesn't get around the limit.
-- **Items hidden inside other items are counted:** blocked items can't be smuggled in inside a shulker box or bundle.
-- **Ways around the limits are blocked:** see [Blocked workarounds](#blocked-workarounds).
-- **Config reload with checks:** `/climit reload` reports YAML errors and unknown item names in chat instead of failing silently.
+- **Separate limits for each container type**, including what can go inside bundles
+- **Limit or block items:** set a maximum per container, or `0` to block an item completely
+- **Partial placing:** if you try to put in more than is allowed, as many as fit go in and the rest stays with you
+- **Item groups:** one entry can cover every color of wool, every shulker box, and so on
+- **Custom items from other plugins,** recognised by their hidden plugin tag, so renaming doesn't get around it
+- **Hard to get around:** covers shift-clicks, number keys, dragging, hoppers, items hidden inside shulker boxes and bundles, pre-filled shulker boxes and double chests
 
 ## Installation
 
-1. Download `ContainerLimit-<version>.jar` and put it in your server's `plugins/` folder.
+1. Download the jar from [Releases](../../releases) and put it in your server's `plugins/` folder.
 2. Restart the server. `plugins/ContainerLimit/config.yml` is created.
-3. Set your limits in `config.yml` and run `/climit reload`.
+3. Set up your limits (see below) and run `/climit reload`.
 
 ## Configuration
 
-Each container type gets its own list of `item: limit` entries:
+Limits go under `containers:`. Each container type gets its own list of `item: limit` entries:
 
 ```yaml
 containers:
-  ENDER_CHEST:
-    ELYTRA: 1
-    ENCHANTED_GOLDEN_APPLE: 0
+  ENDER_CHEST:          # container type
+    ELYTRA: 1           # at most 1 elytra per ender chest
+    TOTEM_OF_UNDYING: 0 # 0 = blocked
   CHEST:
-    NETHERITE_BLOCK: 16
-  SHULKER_BOX:
-    TOTEM_OF_UNDYING: 1
+    WOOL: 64            # at most 64 wool in total, any colors
+  BUNDLE:
+    ENDER_PEARL: 8      # at most 8 pearls inside each bundle
 ```
+
+A limit counts the item across **all slots** of one container. A double chest counts as one container.
 
 ### Container types
 
 | Key | Covers |
 |---|---|
-| `ENDER_CHEST` | Ender chests, including ones opened by commands like `/enderchest` |
-| `CHEST` | Chests, trapped chests, double chests, chest minecarts, chest boats |
-| `BARREL`, `SHULKER_BOX` | The placed blocks |
+| `ENDER_CHEST` | Ender chests |
+| `CHEST` | Chests, trapped chests, double chests, chest minecarts and boats |
+| `BARREL`, `SHULKER_BOX`, `DISPENSER`, `DROPPER`, `CRAFTER` | The placed blocks |
 | `HOPPER` | Hoppers and hopper minecarts |
-| `DISPENSER`, `DROPPER`, `CRAFTER` | The placed blocks (`CRAFTER` is 1.21+) |
 | `FURNACE`, `BLAST_FURNACE`, `SMOKER`, `BREWING` | The placed blocks |
-| `BUNDLE` | Special: limits what can go **inside** each bundle, including colored bundles |
-
-A double chest counts as one container.
+| `BUNDLE` | What can go **inside** each bundle |
 
 ### Item keys
 
-| Key | Matches |
+| Example | Matches |
 |---|---|
 | `ELYTRA` | One item ([material names](https://hub.spigotmc.org/javadocs/spigot/org/bukkit/Material.html)) |
-| `WOOL` | A [Minecraft tag](https://minecraft.wiki/w/Tag), e.g. `WOOL`, `BEDS`, `BANNERS`, `CANDLES`, `LOGS`, `SHULKER_BOXES` |
-| `'*_WOOL'` | A wildcard over item names. **Must be in quotes.** |
-| `'custom:plugin:tag=value'` | A custom item from another plugin. See [Custom items](#custom-items). |
+| `WOOL` | A [Minecraft tag](https://minecraft.wiki/w/Tag), e.g. `WOOL`, `BEDS`, `BANNERS`, `LOGS` |
+| `'*_WOOL'` | A wildcard over item names, **in quotes** |
+| `'custom:plugin:tag=value'` | A custom item from another plugin, **in quotes** |
 
-A tag or wildcard entry shares **one limit across all its items**: `WOOL: 64` means 64 wool in total, in any mix of colors. If several entries cover the same item, all of them apply. For example, `WOOL: 64` together with `RED_WOOL: 0` allows up to 64 wool of any color except red.
+- **Tags and wildcards share one limit:** `WOOL: 64` means 64 wool in total, not 64 of each color.
+- **Overlapping entries all apply:** `WOOL: 64` plus `RED_WOOL: 0` allows up to 64 wool of any color except red.
 
 ### Custom items
 
-Many plugins make custom items from normal items. For example, LifestealZ hearts are renamed nether stars. To limit these:
-
-1. Hold the item and run `/climit hand`.
-2. The command lists the item's hidden plugin tags as ready-made config lines. Click one to copy it.
-3. Paste the line under a container in `config.yml` and run `/climit reload`.
+1. Hold the custom item and run `/climit hand`.
+2. It lists the item's plugin tags as ready-made config lines. Click one to copy it.
+3. Paste it under a container and run `/climit reload`.
 
 ```yaml
 ENDER_CHEST:
-  'custom:lifestealz:customitemtype=heart': 0   # tag has exactly this value
-  'custom:someplugin:item_id': 5                # tag exists, any value
+  'custom:someplugin:item_type=example': 0  # tag has exactly this value
+  'custom:someplugin:item_id': 5            # tag exists, any value
 ```
 
-Pick a tag that's the same on every copy of the item, like an item ID or type. A custom item never counts as its base item: once hearts are defined, `NETHER_STAR` only means real nether stars.
+Pick a tag that's the same on every copy of the item, like an item ID or type. A custom item never counts as its base item. If `/climit hand` finds no plugin tags, the item can only be limited by its item type.
 
-> This works for plugins that store data with Bukkit's `PersistentDataContainer` (shown as `PublicBukkitValues` in `/data get`), which most plugins do. If `/climit hand` says the item has no plugin tags, it can only be limited by its item type.
-
-### Other options
+### Other settings
 
 ```yaml
-# Count items inside shulker boxes and bundles, so blocked items can't be smuggled in
+# Count items inside shulker boxes and bundles, so blocked items can't be hidden in them
 count-container-contents: true
 
-# Skip other plugins' menus (e.g. a shop GUI that looks like a chest). Ender chests are always checked.
+# Skip other plugins' menus (e.g. a shop GUI that looks like a chest)
 ignore-plugin-inventories: true
+
+# Chat messages, & color codes work.
+# Placeholders: {item}, {limit}, {container}
+messages:
+  prefix: "&8[&5ContainerLimit&8] "
+  blocked: "&c{item} is not allowed in this {container}."
+  limit: "&cYou can only store {limit}x {item} in one {container}."
 ```
 
-All player messages can be changed under `messages:` in `config.yml`, including `&` color codes.
+If there's a mistake in the config, `/climit reload` shows it in chat and keeps the old settings.
 
-## Commands
-
-The main command is `/containerlimit`, and `/climit` is a shorter alias.
+## Commands & Permissions
 
 | Command | Description |
 |---|---|
-| `/climit reload` | Reload `config.yml` and show any errors or warnings |
-| `/climit list` | Show all configured limits |
-| `/climit hand` | Show the plugin tags on your held item, for setting up custom items |
+| `/climit reload` | Reload the config and show any errors |
+| `/climit list` | Show all limits |
+| `/climit hand` | Show the plugin tags on your held item |
 
-## Permissions
+`/containerlimit` works too.
 
 | Permission | Description | Default |
 |---|---|---|
-| `containerlimit.admin` | Use `/climit` | op |
+| `containerlimit.admin` | Use the commands | op |
 | `containerlimit.bypass` | Ignore all limits | nobody |
-| `containerlimit.bypass.<type>` | Ignore limits for one container type, e.g. `containerlimit.bypass.ender_chest` or `containerlimit.bypass.bundle` | nobody |
+| `containerlimit.bypass.<type>` | Ignore limits for one container type, e.g. `containerlimit.bypass.chest` | nobody |
 
-Ops don't bypass limits unless you give them one of the bypass permissions.
+## Good to know
 
-## Blocked workarounds
-
-The plugin handles every way items can get into a container:
-
-- **Clicks:** normal clicks, right-clicks, shift-clicks, dragging across slots, number keys (1–9) and the offhand key (F)
-- **Items inside items:** blocked items inside shulker boxes and bundles, even bundles inside bundles
-- **Bundles already in a container:** stuffing items into a bundle that's already inside a limited container
-- **Hoppers and droppers:** moving items into a container, and hoppers picking items up off the ground
-- **Placing a pre-filled shulker box:** by a player or by a dispenser
-- **Merging chests:** combining two single chests into a double chest that would go over the limit
-- **Commands and other plugins:** ender chests opened by commands or other plugins (`/ec`, `/invsee`, …)
-
-### Known limitations
-
-- **Items already stored:** items that were in a container before a limit was added stay there. The plugin only blocks new items going in.
-- **Creative mode:** the creative inventory isn't checked, because creative players can spawn any item anyway. Give staff a bypass permission instead of creative.
-- **Bundles:** items go into a bundle all at once or not at all. There's no partial insert.
-- **Custom ender chest copies:** a plugin that shows a copy of the ender chest in a normal chest window can't be told apart from a plugin menu.
+- **Items already stored:** items that were in a container before a limit was added stay there. Only new items are blocked.
+- **Creative mode:** the creative inventory isn't checked, because creative players can spawn any item anyway.
+- **Bundles:** items go into a bundle all at once or not at all.
 
 ## Compatibility
 
-| | |
-|---|---|
-| **Minecraft** | 1.18 – 1.21.x (1.17 only if the server runs on Java 17) |
-| **Server** | Spigot, Paper and Paper forks (Purpur, Pufferfish, …) |
-| **Not supported** | Folia, Forge/Fabric/NeoForge, proxies (BungeeCord/Velocity) |
-| **Java** | 17 or newer |
-
-## Building
-
-You need JDK 17+ and Maven.
-
-```bash
-mvn clean package
-```
-
-The jar is written to `target/ContainerLimit-<version>.jar`.
-
-Every push is also built automatically by GitHub Actions. Download the jar from a run's **Artifacts** section on the Actions tab.
+Minecraft **1.18 – 1.21.x** on **Spigot, Paper** and Paper forks (Purpur, Pufferfish, …), with **Java 17+**. Folia isn't supported.
 
 ## License
 
