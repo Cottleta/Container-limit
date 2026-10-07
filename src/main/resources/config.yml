@@ -14,6 +14,7 @@
 #   ENDER_CHEST, CHEST (chests, trapped chests, double chests, chest minecarts, chest boats),
 #   BARREL, SHULKER_BOX, HOPPER (also hopper minecarts), DISPENSER, DROPPER,
 #   FURNACE, BLAST_FURNACE, SMOKER, BREWING, CRAFTER (1.21+)
+#   DECORATED_POT, SHELF (1.21.9+), ITEM_FRAME (also glow item frames)
 #   BUNDLE (special: limits what can be put INSIDE each bundle, including colored bundles)
 #
 # Item keys can be:
@@ -53,6 +54,12 @@ containers:
   # BUNDLE:
   #   TOTEM_OF_UNDYING: 0
   #   ENDER_PEARL: 8
+  # ITEM_FRAME:
+  #   ELYTRA: 0
+  # DECORATED_POT:
+  #   ELYTRA: 0
+  # SHELF:
+  #   ELYTRA: 0
 
 # Also count items stored inside shulker boxes, bundles and other container items.
 # Without this, players can smuggle blocked items in by putting them in a shulker box first.

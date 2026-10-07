@@ -4,7 +4,7 @@ A Spigot/Paper plugin that limits or blocks specific items in ender chests, ches
 
 ## Features
 
-- **Separate limits for each container type**, including what can go inside bundles
+- **Separate limits for each container type**, including what can go inside bundles, item frames, decorated pots and shelves
 - **Limit or block items:** set a maximum per container, or `0` to block an item completely
 - **Partial placing:** if you try to put in more than is allowed, as many as fit go in and the rest stays with you
 - **Item groups:** one entry can cover every color of wool, every shulker box, and so on
@@ -43,6 +43,9 @@ A limit counts the item across **all slots** of one container. A double chest co
 | `BARREL`, `SHULKER_BOX`, `DISPENSER`, `DROPPER`, `CRAFTER` | The placed blocks |
 | `HOPPER` | Hoppers and hopper minecarts |
 | `FURNACE`, `BLAST_FURNACE`, `SMOKER`, `BREWING` | The placed blocks |
+| `DECORATED_POT` | Decorated pots |
+| `SHELF` | All wood types of shelves (1.21.9+) |
+| `ITEM_FRAME` | Item frames and glow item frames |
 | `BUNDLE` | What can go **inside** each bundle |
 
 ### Item keys

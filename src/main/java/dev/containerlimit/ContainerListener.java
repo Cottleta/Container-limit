@@ -1,16 +1,21 @@
 package dev.containerlimit;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Container;
+import org.bukkit.block.data.Powerable;
 import org.bukkit.entity.Item;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockDispenseEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.ClickType;
@@ -20,8 +25,11 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.BlockStateMeta;
@@ -136,7 +144,7 @@ public final class ContainerListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBundleClick(InventoryClickEvent event) {
-        LimitManager.LimitTable table = limits.bundleLimits();
+        LimitManager.LimitTable table = limits.limitsFor(LimitManager.BUNDLE);
         if (table == null || event instanceof InventoryCreativeEvent) return;
         if (!(event.getWhoClicked() instanceof Player player) || limits.canBypass(player, LimitManager.BUNDLE)) return;
 
@@ -152,6 +160,79 @@ public final class ContainerListener implements Listener {
             event.setCancelled(true);
             deny(player, violation, LimitManager.containerName(LimitManager.BUNDLE));
         }
+    }
+
+    /** Putting an item into an empty item frame or glow item frame. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onItemFrameInteract(PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() instanceof ItemFrame frame)) return;
+        LimitManager.LimitTable table = limits.limitsFor(LimitManager.ITEM_FRAME);
+        Player player = event.getPlayer();
+        if (table == null || limits.canBypass(player, LimitManager.ITEM_FRAME)) return;
+        if (!isAir(frame.getItem())) return; // clicking a filled frame only rotates the item
+
+        ItemStack held = player.getInventory().getItem(event.getHand());
+        if (isAir(held)) return;
+        ItemStack one = held.clone();
+        one.setAmount(1);
+
+        LimitManager.Result violation = limits.violationAdding(table, new ItemStack[0], new ItemStack[]{one});
+        if (violation != null) {
+            event.setCancelled(true);
+            deny(player, violation, LimitManager.containerName(LimitManager.ITEM_FRAME));
+        }
+    }
+
+    /**
+     * Right-clicking a decorated pot (adds one item) or a shelf (puts the held stack on it). A powered
+     * shelf swaps its items with the whole hotbar instead, so then every hotbar item is checked.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockInteract(PlayerInteractEvent event) {
+        Block block = event.getClickedBlock();
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || block == null) return;
+
+        boolean shelf = isShelf(block.getType());
+        String section = shelf ? LimitManager.SHELF
+                : block.getType().name().equals("DECORATED_POT") ? "DECORATED_POT" : null;
+        if (section == null) return;
+        LimitManager.LimitTable table = limits.limitsFor(section);
+        Player player = event.getPlayer();
+        if (table == null || limits.canBypass(player, section)) return;
+
+        // Sneaking while holding anything skips using the block (vanilla places the held item instead)
+        PlayerInventory inventory = player.getInventory();
+        if (player.isSneaking() && (!isAir(inventory.getItemInMainHand()) || !isAir(inventory.getItemInOffHand()))) {
+            return;
+        }
+        if (!(block.getState() instanceof InventoryHolder holder)) return;
+
+        ItemStack held = event.getItem();
+        ItemStack[] incoming;
+        if (shelf && block.getBlockData() instanceof Powerable powerable && powerable.isPowered()) {
+            incoming = new ItemStack[9];
+            for (int slot = 0; slot < 9; slot++) {
+                incoming[slot] = inventory.getItem(slot);
+            }
+        } else if (isAir(held)) {
+            return; // empty hand only takes items out
+        } else if (shelf) {
+            incoming = new ItemStack[]{held};
+        } else {
+            ItemStack one = held.clone();
+            one.setAmount(1);
+            incoming = new ItemStack[]{one};
+        }
+
+        LimitManager.Result violation = limits.violationAdding(table, holder.getInventory().getContents(), incoming);
+        if (violation != null) {
+            event.setCancelled(true);
+            deny(player, violation, LimitManager.containerName(section));
+        }
+    }
+
+    private static boolean isShelf(Material material) {
+        return material.name().endsWith("_SHELF");
     }
 
     /** The limit broken if all of {@code incoming} went into {@code bundle}, or null if it all fits. */
@@ -195,6 +276,13 @@ public final class ContainerListener implements Listener {
     public void onMoveItem(InventoryMoveItemEvent event) {
         Inventory destination = event.getDestination();
         LimitManager.LimitTable table = limits.limitsFor(destination.getType());
+        if (table == null && limits.limitsFor(LimitManager.SHELF) != null) {
+            // Shelves have no inventory type of their own, so recognise them by their block
+            Location location = destination.getLocation();
+            if (location != null && isShelf(location.getBlock().getType())) {
+                table = limits.limitsFor(LimitManager.SHELF);
+            }
+        }
         if (table == null) return;
         if (destination.getType() == InventoryType.ENDER_CHEST
                 && destination.getHolder() instanceof Player owner && limits.canBypass(owner, InventoryType.ENDER_CHEST)) {

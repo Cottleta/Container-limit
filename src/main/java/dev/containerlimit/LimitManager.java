@@ -53,11 +53,21 @@ public final class LimitManager {
             InventoryType.PLAYER, InventoryType.CRAFTING, InventoryType.CREATIVE);
 
     private final ContainerLimit plugin;
-    /** Config key for limits on what can go inside a bundle. */
-    public static final String BUNDLE = "BUNDLE";
 
+    /** Config section for what can go inside a bundle. */
+    public static final String BUNDLE = "BUNDLE";
+    /** Config section for item frames and glow item frames. */
+    public static final String ITEM_FRAME = "ITEM_FRAME";
+    /** Config section for shelves (1.21.9+). Shelves have no InventoryType of their own. */
+    public static final String SHELF = "SHELF";
+
+    /** Things that hold items but aren't an InventoryType, so they're handled by name. */
+    private static final Set<String> SPECIAL_SECTIONS = Set.of(BUNDLE, ITEM_FRAME, SHELF);
+
+    /** Limits for real inventory types, used by inventory events. */
     private final Map<InventoryType, LimitTable> limits = new HashMap<>();
-    private LimitTable bundleLimits;
+    /** Every loaded section by its config name, including the special ones. */
+    private final Map<String, LimitTable> sections = new HashMap<>();
     /**
      * Every custom item defined anywhere in the config. An item matching one of these is a custom
      * item everywhere, so it's never counted as its base material (a heart is not a NETHER_STAR).
@@ -78,7 +88,7 @@ public final class LimitManager {
     public List<String> load() {
         List<String> problems = new ArrayList<>();
         limits.clear();
-        bundleLimits = null;
+        sections.clear();
         allCustomMatchers.clear();
         FileConfiguration config = plugin.getConfig();
         countContainerContents = config.getBoolean("count-container-contents", true);
@@ -94,15 +104,19 @@ public final class LimitManager {
                     problems.add("containers." + typeKey + " must be a list of item: amount");
                     continue;
                 }
-                // Bundles are items, not an InventoryType, so they get their own table
-                if (typeKey.equalsIgnoreCase(BUNDLE)) {
-                    bundleLimits = loadSection(BUNDLE, section, problems);
+                String name = typeKey.toUpperCase(Locale.ROOT);
+                if (SPECIAL_SECTIONS.contains(name)) {
+                    LimitTable table = loadSection(name, section, problems);
+                    if (table != null) sections.put(name, table);
                     continue;
                 }
                 InventoryType type = parseType(typeKey, problems);
                 if (type == null) continue;
                 LimitTable table = loadSection(type.name(), section, problems);
-                if (table != null) limits.put(type, table);
+                if (table != null) {
+                    limits.put(type, table);
+                    sections.put(type.name(), table);
+                }
             }
         }
 
@@ -110,7 +124,10 @@ public final class LimitManager {
         if (config.contains("limits", true) && config.isConfigurationSection("limits")
                 && !limits.containsKey(InventoryType.ENDER_CHEST)) {
             LimitTable table = loadSection(InventoryType.ENDER_CHEST.name(), config.getConfigurationSection("limits"), problems);
-            if (table != null) limits.put(InventoryType.ENDER_CHEST, table);
+            if (table != null) {
+                limits.put(InventoryType.ENDER_CHEST, table);
+                sections.put(InventoryType.ENDER_CHEST.name(), table);
+            }
         }
 
         registerBypassPermissions();
@@ -218,12 +235,8 @@ public final class LimitManager {
      * permissions are registered here to make them default to false.
      */
     private void registerBypassPermissions() {
-        List<String> sections = new ArrayList<>();
-        limits.keySet().forEach(type -> sections.add(type.name()));
-        if (bundleLimits != null) sections.add(BUNDLE);
-
         PluginManager pluginManager = plugin.getServer().getPluginManager();
-        for (String section : sections) {
+        for (String section : sections.keySet()) {
             String name = bypassPermission(section);
             if (pluginManager.getPermission(name) == null) {
                 pluginManager.addPermission(new Permission(name,
@@ -246,9 +259,12 @@ public final class LimitManager {
         return permissible.hasPermission(BYPASS_PERMISSION) || permissible.hasPermission(bypassPermission(section));
     }
 
-    /** Limits on what can go inside a bundle, or null if there are none. */
-    public LimitTable bundleLimits() {
-        return bundleLimits;
+    /**
+     * Limits for a section by its config name, e.g. {@link #BUNDLE}, {@link #ITEM_FRAME},
+     * {@link #SHELF} or "DECORATED_POT". Null if the section has none.
+     */
+    public LimitTable limitsFor(String section) {
+        return sections.get(section);
     }
 
     /** Limits for this container type, or null if the type has none. */
@@ -273,9 +289,7 @@ public final class LimitManager {
 
     /** Section name (container type or BUNDLE) -> (config key -> limit), sorted, for /climit list. */
     public Map<String, Map<String, Integer>> getAllLimits() {
-        Map<String, LimitTable> tables = new java.util.TreeMap<>();
-        limits.forEach((type, table) -> tables.put(type.name(), table));
-        if (bundleLimits != null) tables.put(BUNDLE, bundleLimits);
+        Map<String, LimitTable> tables = new java.util.TreeMap<>(sections);
 
         Map<String, Map<String, Integer>> result = new LinkedHashMap<>();
         tables.forEach((section, table) -> {
@@ -291,8 +305,7 @@ public final class LimitManager {
     }
 
     public int totalLimitCount() {
-        int bundleCount = bundleLimits == null ? 0 : bundleLimits.rules().size();
-        return bundleCount + limits.values().stream().mapToInt(table -> table.rules().size()).sum();
+        return sections.values().stream().mapToInt(table -> table.rules().size()).sum();
     }
 
     /** Rule counts for only the top-level material of a stack, ignoring nested contents. */
@@ -384,6 +397,23 @@ public final class LimitManager {
             }
         }
         return new Result(allowed, limiting);
+    }
+
+    /**
+     * The first limit broken by adding all of {@code incoming} to {@code current}, or null if it all fits.
+     * Limits that were already broken before don't count unless {@code incoming} adds to them.
+     */
+    public Result violationAdding(LimitTable table, ItemStack[] current, ItemStack[] incoming) {
+        Map<Rule, Integer> adding = countItems(table, incoming);
+        if (adding.isEmpty()) return null;
+        Map<Rule, Integer> existing = countItems(table, current);
+        for (Map.Entry<Rule, Integer> entry : adding.entrySet()) {
+            Rule rule = entry.getKey();
+            if (entry.getValue() > 0 && existing.getOrDefault(rule, 0) + entry.getValue() > rule.limit()) {
+                return new Result(0, rule);
+            }
+        }
+        return null;
     }
 
     /** First limit broken by a whole set of items (e.g. a pre-filled shulker box), or null if none. */
